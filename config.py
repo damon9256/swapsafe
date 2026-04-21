@@ -1,11 +1,11 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./swapsafe.db"
+    DATABASE_URL: str = "postgresql://postgres:SwapSafe9155@db.pnqxubvndqfbmndrkzfp.supabase.co:5432/postgres"
     REDIS_URL: str = "redis://localhost:6379"
-    BOT_TOKEN: str = "YOUR_BOT_TOKEN_HERE"
-    BOT_USERNAME: str = "swapsafe_bot"
-    SECRET_KEY: str = "swapsafe-secret-key-change-this"
+    BOT_TOKEN: str = "7797778162:AAG1NEEuozOnx3MM6Mw2j5JpxY8qxFgivyM"
+    BOT_USERNAME: str = "Smartescrow_bot"
+    SECRET_KEY: str = "swapsafe-super-secret-key-change-this-123"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 720
     PLATFORM_FEE_PERCENT: float = 0.0
     WITHDRAWAL_FEE_USDT: float = 0.0
