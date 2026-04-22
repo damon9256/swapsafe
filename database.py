@@ -3,15 +3,18 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-# Format: postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./swapsafe.db")
 
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable not set")
+# Fix for Supabase/Render - force psycopg2 dialect
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,        # auto-reconnect if connection drops
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+    pool_pre_ping=True,
     pool_size=5,
     max_overflow=10
 )
