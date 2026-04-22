@@ -3,11 +3,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./swapsafe.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+# Format: postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable not set")
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    pool_pre_ping=True,        # auto-reconnect if connection drops
+    pool_size=5,
+    max_overflow=10
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
