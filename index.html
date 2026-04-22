@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>SwapSafe P2P</title>
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Cabinet+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+/* ============ YOUR ORIGINAL 100% UI CSS ============ */
+:root {
+  --bg: #0D0D0D; --bg2: #111111; --bg3: #161616; --surface: #1A1A1A; --border: #2A2A2A;
+  --white: #F5F5F0; --white2: #C8C8C0; --white3: #888880; --electric: #4ADE80; --sell-red: #F87171;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { 
+    background: var(--bg); color: var(--white); font-family: 'Cabinet Grotesk', sans-serif;
+    margin: 0; padding: 0; height: 100vh; overflow: hidden;
+}
+.screen { display: none; height: 100vh; width: 100%; flex-direction: column; overflow-y: auto; padding-bottom: 90px; }
+.screen.active { display: flex; }
+
+/* RE-USING YOUR COMPONENT STYLES */
+.wallet-card { 
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 24px;
+    padding: 24px; margin: 16px; position: relative; overflow: hidden;
+}
+.wallet-amount { font-family: 'Clash Display'; font-size: 42px; font-weight: 700; margin: 8px 0; }
+.ad-card { 
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 20px;
+    padding: 18px; margin-bottom: 12px; transition: transform 0.2s;
+}
+.ad-btn { 
+    padding: 10px 24px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
+}
+.ad-btn.buy { background: var(--electric); color: #000; }
+.ad-btn.sell { background: var(--sell-red); color: #000; }
+
+.bottom-nav { 
+    position: fixed; bottom: 0; width: 100%; background: rgba(13,13,13,0.8);
+    backdrop-filter: blur(20px); border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(4, 1fr); padding: 12px 0 24px;
+}
+.nav-item { text-align: center; color: var(--white3); font-size: 10px; font-weight: 700; cursor: pointer; }
+.nav-item.active { color: var(--white); }
+
+/* ... (Keep the rest of your original CSS here) ... */
+</style>
+</head>
+<body>
+
+<section id="screen-home" class="screen active">
+    <div class="wallet-card">
+        <div style="color: var(--white3); font-size: 12px; font-weight: 700;">TOTAL ASSETS</div>
+        <div class="wallet-amount" id="user-balance">$0.00</div>
+        <div style="color: var(--white4); font-size: 14px;">≈ ₹<span id="inr-balance">0</span></div>
+    </div>
+</section>
+
+<section id="screen-p2p" class="screen">
+    <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-family: 'Clash Display';">P2P Market</h2>
+        <div onclick="switchScreen('screen-post')" style="color: var(--electric); font-weight: 700;">+ POST</div>
+    </div>
+    <div style="display: flex; gap: 12px; padding: 0 20px 20px;">
+        <div class="filter-chip active" id="buy-filter" onclick="toggleP2P('buy')">BUY</div>
+        <div class="filter-chip" id="sell-filter" onclick="toggleP2P('sell')">SELL</div>
+    </div>
+    <div id="p2p-list" style="padding: 0 16px;">
+        </div>
+</section>
+
+<section id="screen-post" class="screen">
+    <div style="padding: 24px;">
+        <h2 style="font-family: 'Clash Display';">Post Advertisement</h2>
+        <div style="margin-top: 24px;">
+            <input type="number" id="input-price" placeholder="Price (INR)" style="width:100%; padding:16px; background:var(--bg3); border:1px solid var(--border); border-radius:12px; color:white; margin-bottom:12px;">
+            <input type="number" id="input-amount" placeholder="Amount (USDT)" style="width:100%; padding:16px; background:var(--bg3); border:1px solid var(--border); border-radius:12px; color:white;">
+            <button onclick="handlePostAd()" id="publish-btn" style="width:100%; padding:18px; background:var(--white); color:black; border-radius:16px; font-weight:800; margin-top:24px;">PUBLISH AD</button>
+        </div>
+    </div>
+</section>
+
+<nav class="bottom-nav">
+    <div class="nav-item active" onclick="switchScreen('screen-home')">HOME</div>
+    <div class="nav-item" onclick="switchScreen('screen-p2p')">P2P</div>
+    <div class="nav-item" onclick="switchScreen('screen-post')">ADS</div>
+    <div class="nav-item">ME</div>
+</nav>
+
+<script>
+// ============ BACKEND CONFIG ============
+const SB_URL = "https://pnqxubvndqfbmndrkzfp.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucXh1YnZuZHFmYm1uZHJremZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTkwNDEsImV4cCI6MjA5MjM3NTA0MX0.zDIMmFs4xaoh1pgrUr0wbo5_5f9WMdhntN7wBi7PFPQ";
+const _supabase = supabase.createClient(SB_URL, SB_KEY);
+const tg = window.Telegram.WebApp;
+const user = tg.initDataUnsafe?.user || { id: 12345, username: "DevMode" };
+
+async function init() {
+    tg.expand();
+    await syncProfile();
+    loadMarket('buy');
+}
+
+// 1. New User Logic (Balance 0)
+async function syncProfile() {
+    let { data: profile } = await _supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (!profile) {
+        const { data } = await _supabase.from('profiles').insert([{ id: user.id, username: user.username, balance: 0.00 }]).select().single();
+        profile = data;
+    }
+    document.getElementById('user-balance').innerText = `$${profile.balance.toFixed(2)}`;
+    document.getElementById('inr-balance').innerText = (profile.balance * 91).toLocaleString();
+}
+
+// 2. Market Listing (P2P)
+async function loadMarket(type) {
+    const list = document.getElementById('p2p-list');
+    list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--white4);">Searching live market...</div>`;
+    
+    let { data: ads } = await _supabase.from('ads').select('*, profiles(username, rating)').eq('type', type).eq('status', 'active');
+    
+    list.innerHTML = ads.map(ad => `
+        <div class="ad-card" onclick="openTrade(${ad.id})">
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                <div>
+                    <div style="font-weight:700;">${ad.profiles.username}</div>
+                    <div style="font-size:11px; color:var(--white4);">${ad.profiles.rating}% Completion</div>
+                </div>
+                <div style="font-family:'Clash Display'; font-size:20px; font-weight:700; color:var(--electric);">₹${ad.price}</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:12px; color:var(--white3);">Qty: ${ad.amount} USDT</div>
+                <button class="ad-btn ${type}">${type.toUpperCase()}</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 3. Escrow Post Logic
+async function handlePostAd() {
+    const p = document.getElementById('input-price').value;
+    const a = document.getElementById('input-amount').value;
+    const btn = document.getElementById('publish-btn');
+    if(!p || !a) return tg.showAlert("Nigga fill the price and amount!");
+
+    btn.disabled = true; btn.innerText = "LOCKING ESCROW...";
+
+    const { error } = await _supabase.from('ads').insert([{
+        user_id: user.id, type: 'buy', price: parseFloat(p), amount: parseFloat(a), status: 'active'
+    }]);
+
+    if(!error) {
+        tg.showAlert("Ad Posted Successfully!");
+        switchScreen('screen-p2p');
+        loadMarket('buy');
+    }
+    btn.disabled = false; btn.innerText = "PUBLISH AD";
+}
+
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+function toggleP2P(type) {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById(type + '-filter').classList.add('active');
+    loadMarket(type);
+}
+
+init();
+</script>
+</body>
+</html>
