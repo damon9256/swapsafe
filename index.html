@@ -2698,5 +2698,112 @@ setInterval(() => {
   });
 }, 5000);
 </script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// 1. CONFIGURATION
+const SB_URL = "https://pnqxubvndqfbmndrkzfp.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBucXh1YnZuZHFmYm1uZHJremZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTkwNDEsImV4cCI6MjA5MjM3NTA0MX0.zDIMmFs4xaoh1pgrUr0wbo5_5f9WMdhntN7wBi7PFPQ";
+const _sb = supabase.createClient(SB_URL, SB_KEY);
+const tg = window.Telegram.WebApp;
+const user = tg.initDataUnsafe?.user || { id: 777, username: "Dev_User" };
+
+// 2. INITIALIZE & SYNC WALLET
+async function initApp() {
+    tg.expand();
+    tg.enableClosingConfirmation();
+    
+    // Sync Profile (Handle New User = $0.00)
+    let { data: profile, error } = await _sb.from('profiles').select('*').eq('id', user.id).single();
+    
+    if (!profile) {
+        const { data } = await _sb.from('profiles').insert([{ 
+            id: user.id, 
+            username: user.username, 
+            balance: 0.00 
+        }]).select().single();
+        profile = data;
+    }
+
+    // Update your Wallet UI
+    const walletEl = document.querySelector('.wallet-amount');
+    const inrEl = document.querySelector('.wallet-sub span'); // Targetting your ≈ ₹0.00
+    if(walletEl) walletEl.innerText = `$${profile.balance.toFixed(2)}`;
+    if(inrEl) inrEl.innerText = (profile.balance * 91).toLocaleString();
+
+    loadLiveMarket('buy');
+}
+
+// 3. LIVE MARKET BINDING
+async function loadLiveMarket(type) {
+    const container = document.querySelector('#screen-market .scroll-content');
+    if(!container) return;
+
+    let { data: ads } = await _sb.from('ads')
+        .select('*, profiles(username, rating)')
+        .eq('type', type)
+        .eq('status', 'active');
+
+    // Generate your exact HTML structure
+    container.innerHTML = ads.map(ad => `
+        <div class="ad-card ${ad.type === 'sell' ? 'sell' : ''}" onclick="showTradeDetails(${ad.id})">
+            <div class="ad-top">
+                <div class="ad-user">
+                    <div class="avatar">${ad.profiles.username[0].toUpperCase()}</div>
+                    <div>
+                        <div class="ad-name">${ad.profiles.username}</div>
+                        <div class="ad-meta">${ad.profiles.rating}% Completion</div>
+                    </div>
+                </div>
+                <div class="ad-rate">₹${ad.price} <span>/USDT</span></div>
+            </div>
+            <div class="ad-row">
+                <div class="ad-limits">Limit: ₹${(ad.amount * ad.price).toLocaleString()}</div>
+                <div class="ad-methods"><span class="method-tag">UPI</span></div>
+            </div>
+            <button class="trade-btn">${ad.type.toUpperCase()}</button>
+        </div>
+    `).join('');
+}
+
+// 4. ESCROW ACTION (When user clicks Publish)
+async function handlePublish() {
+    const price = document.querySelector('input[placeholder*="Price"]')?.value;
+    const amount = document.querySelector('input[placeholder*="Amount"]')?.value;
+    
+    if(!price || !amount) return tg.showPopup({ message: "Nigga, enter price and amount!" });
+
+    // Show your existing loader or toast
+    tg.MainButton.setText("LOCKING ESCROW...").show();
+
+    const { error } = await _sb.from('ads').insert([{
+        user_id: user.id,
+        type: 'buy', // default to buy
+        price: parseFloat(price),
+        amount: parseFloat(amount),
+        status: 'active'
+    }]);
+
+    if(!error) {
+        tg.HapticFeedback.notificationOccurred('success');
+        tg.MainButton.hide();
+        location.reload(); // Refresh UI
+    }
+}
+
+// 5. NAVIGATION EVENT BINDING
+document.querySelectorAll('.nav-item').forEach(nav => {
+    nav.addEventListener('click', () => {
+        const label = nav.querySelector('.nav-label')?.innerText;
+        if(label === 'MARKET') loadLiveMarket('buy');
+        if(label === 'WALLET') initApp();
+    });
+});
+
+// Start the engine
+document.addEventListener('DOMContentLoaded', initApp);
+      </script>
+  
 </body>
 </html>
